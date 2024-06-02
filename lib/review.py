@@ -1,82 +1,75 @@
-from __init__ import CURSOR, CONN
-from department import Department
-from employee import Employee
-
+import sqlite3
 
 class Review:
+    all_reviews = {}
 
-    # Dictionary of objects saved to the database.
-    all = {}
-
-    def __init__(self, year, summary, employee_id, id=None):
-        self.id = id
+    def __init__(self, year, summary, employee):
+        self.id = None
         self.year = year
         self.summary = summary
-        self.employee_id = employee_id
+        self.employee = employee
 
     def __repr__(self):
-        return (
-            f"<Review {self.id}: {self.year}, {self.summary}, "
-            + f"Employee: {self.employee_id}>"
-        )
+        return f"Review({self.year}, {self.summary}, {self.employee})"
 
     @classmethod
     def create_table(cls):
-        """ Create a new table to persist the attributes of Review instances """
-        sql = """
-            CREATE TABLE IF NOT EXISTS reviews (
-            id INTEGER PRIMARY KEY,
-            year INT,
-            summary TEXT,
-            employee_id INTEGER,
-            FOREIGN KEY (employee_id) REFERENCES employee(id))
-        """
-        CURSOR.execute(sql)
-        CONN.commit()
+        sqlite3.Cursor.execute('''CREATE TABLE IF NOT EXISTS reviews
+                          (id INTEGER PRIMARY KEY, year INTEGER, summary TEXT, employee_id INTEGER)''')
+        sqlite3.connect.commit()
 
     @classmethod
     def drop_table(cls):
-        """ Drop the table that persists Review  instances """
-        sql = """
-            DROP TABLE IF EXISTS reviews;
-        """
-        CURSOR.execute(sql)
-        CONN.commit()
+        sqlite3.Cursor.execute("DROP TABLE IF EXISTS reviews")
+        sqlite3.connect.commit()
 
     def save(self):
-        """ Insert a new row with the year, summary, and employee id values of the current Review object.
-        Update object id attribute using the primary key value of new row.
-        Save the object in local dictionary using table row's PK as dictionary key"""
-        pass
+        if self.id:
+            sqlite3.Cursor.execute("UPDATE reviews SET year=?, summary=?, employee_id=? WHERE id=?", 
+                           (self.year, self.summary, self.employee.id, self.id))
+        else:
+            sqlite3.Cursor.execute("INSERT INTO reviews (year, summary, employee_id) VALUES (?, ?, ?)", 
+                           (self.year, self.summary, self.employee.id))
+            self.id = sqlite3.Cursor.lastrowid
+            Review.all_reviews[self.id] = self
+        sqlite3.connect.commit()
 
     @classmethod
-    def create(cls, year, summary, employee_id):
-        """ Initialize a new Review instance and save the object to the database. Return the new instance. """
-        pass
-   
+    def create(cls, year, summary, employee):
+        review = Review(year, summary, employee)
+        review.save()
+        return review
+
     @classmethod
     def instance_from_db(cls, row):
-        """Return an Review instance having the attribute values from the table row."""
-        # Check the dictionary for  existing instance using the row's primary key
-        pass
-   
+        review_id = row[0]
+        if review_id in Review.all_reviews:
+            return Review.all_reviews[review_id]
+        review = Review(row[1], row[2], Employee.get_by_id(row[3]))
+        Review.all_reviews[review_id] = review
+        return review
 
     @classmethod
     def find_by_id(cls, id):
-        """Return a Review instance having the attribute values from the table row."""
-        pass
+        sqlite3.Cursor.execute("SELECT * FROM reviews WHERE id=?", (id,))
+        row = sqlite3.Cursor.fetchone()
+        if row:
+            return cls.instance_from_db(row)
+        return None
 
     def update(self):
-        """Update the table row corresponding to the current Review instance."""
-        pass
+        sqlite3.Cursor.execute("UPDATE reviews SET year=?, summary=?, employee_id=? WHERE id=?", 
+                       (self.year, self.summary, self.employee.id, self.id))
+        sqlite3.connect.commit().commit()
 
     def delete(self):
-        """Delete the table row corresponding to the current Review instance,
-        delete the dictionary entry, and reassign id attribute"""
-        pass
+        sqlite3.Cursor.execute("DELETE FROM reviews WHERE id=?", (self.id,))
+        sqlite3.connect.commit().commit()
+        del Review.all_reviews[self.id]
+        self.id = None
 
     @classmethod
     def get_all(cls):
-        """Return a list containing one Review instance per table row"""
-        pass
-
+        sqlite3.Cursor.execute("SELECT * FROM reviews")
+        rows = sqlite3.Cursor.fetchall()
+        return [cls.instance_from_db(row) for row in rows]
